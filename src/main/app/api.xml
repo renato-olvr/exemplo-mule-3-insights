@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/apikit" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:metadata="http://www.mulesoft.org/schema/mule/metadata" xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting" xmlns:spring="http://www.springframework.org/schema/beans" xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/apikit http://www.mulesoft.org/schema/mule/apikit/current/mule-apikit.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.1.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
+    <http:listener-config name="testes-devops-api-httpListenerConfig" host="0.0.0.0" port="8081" doc:name="HTTP Listener Configuration" />
+    <apikit:config name="api-config" raml="api.raml" consoleEnabled="false" doc:name="Router" keepRamlBaseUri="false" />
+    <sub-flow name="simular-resposta-SAP">
+        <choice doc:name="Choice">
+            <when expression="#[message.inboundProperties.erro==null || message.inboundProperties.erro==false]">
+                <dw:transform-message doc:name="Sucesso">
+                    <dw:set-payload><![CDATA[%dw 1.0
+%output application/xml
+---
+retorno:{
+	mensagem: "Cliente incluido com sucesso",
+	ClienteId: 1,
+	status: "Sucesso"
+}]]></dw:set-payload>
+                </dw:transform-message>
+            </when>
+            <otherwise>
+                <dw:transform-message doc:name="Erro">
+                    <dw:set-payload><![CDATA[%dw 1.0
+%output application/java
+---
+retorno:{
+	mensagem: "Falha ao inserir cliente",
+	status: "Erro"
+}]]></dw:set-payload>
+                </dw:transform-message>
+                <validation:is-false message="Falha ao se comunicar com o SAP" expression="true" doc:name="Validation" />
+            </otherwise>
+        </choice>
+    </sub-flow>
+    <flow name="testes-devops-api-main">
+        <http:listener config-ref="testes-devops-api-httpListenerConfig" path="/api/*" doc:name="HTTP" />
+        <apikit:router config-ref="api-config" doc:name="APIkit Router" />
+        <exception-strategy ref="testes-devops-api-apiKitGlobalExceptionMapping" doc:name="Reference Exception Strategy" />
+    </flow>
+    <flow name="testes-devops-api-console">
+        <http:listener config-ref="testes-devops-api-httpListenerConfig" path="/console/*" doc:name="HTTP" />
+        <apikit:console config-ref="api-config" doc:name="APIkit Console" />
+    </flow>
+
+    <flow name="get:/clients:api-config">
+        <set-payload value="[&#xA;  {&#xA;    &quot;id&quot;: 1,&#xA;    &quot;name&quot;: &quot;client 01&quot;,&#xA;    &quot;email&quot;: &quot;client01@email.com&quot;&#xA;  },&#xA;  {&#xA;    &quot;id&quot;: 1,&#xA;    &quot;name&quot;: &quot;client 02&quot;,&#xA;    &quot;email&quot;: &quot;client02@email.com&quot;&#xA;  }&#xA;]" doc:name="Set Payload" />
+        <tracking:custom-event event-name="GET:/clients (payload response)" doc:name="Custom Business Event">
+            <tracking:meta-data key="BAPI" value="XYZ" />
+            <tracking:meta-data key="payload" value="#[payload]" />
+        </tracking:custom-event>
+    </flow>
+    <flow name="post:/clients:api-config">
+        <byte-array-to-string-transformer doc:name="Byte Array to String" />
+        <logger message="#[payload]" level="INFO" doc:name="Logger" />
+        <tracking:custom-event event-name="POST:/clients (payload request)" doc:name="Custom Business Event">
+            <tracking:meta-data key="payload" value="#[payload]" />
+        </tracking:custom-event>
+        <dw:transform-message doc:name="JSON to SAP(XML)">
+            <dw:input-payload doc:sample="sample_data\json.json" />
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/xml
+---
+cliente :  {
+	name: payload.name,
+	email: payload.email
+}]]></dw:set-payload>
+        </dw:transform-message>
+        <tracking:custom-event event-name="Mensagem enviada para o SAP BAPI XPTO" doc:name="Custom Business Event">
+            <tracking:meta-data key="BAPI" value="XPTO" />
+            <tracking:meta-data key="payload" value="#[payload]" />
+        </tracking:custom-event>
+        <flow-ref name="simular-resposta-SAP" doc:name="simular-resposta-SAP" />
+        <tracking:custom-event event-name="mensagem retornada do SAP BAPI XPTO" doc:name="Custom Business Event">
+            <tracking:meta-data key="BAPI" value="XPTO" />
+            <tracking:meta-data key="payload" value="#[payload]" />
+        </tracking:custom-event>
+        <dw:transform-message doc:name="SAP(XML) to Java">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/java
+---
+payload]]></dw:set-payload>
+        </dw:transform-message>
+        <set-property propertyName="http.status" value="201" doc:name="Property 201" />
+        <dw:transform-message doc:name="JSON Resposta">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/json
+---
+{
+	mensagem: payload.retorno.mensagem
+}]]></dw:set-payload>
+        </dw:transform-message>
+        <tracking:custom-event event-name="POST:/clients (payload response)" doc:name="Custom Business Event">
+            <tracking:meta-data key="payload" value="#[payload]" />
+            <tracking:meta-data key="statusCode" value="201" />
+        </tracking:custom-event>
+    </flow>
+
+    <flow name="get:/clients/{id}:api-config">
+        <set-payload value="{
+  &quot;id&quot;: #[message.inboundProperties.'http.uri.params'.id],
+  &quot;name&quot;: &quot;client 0#[message.inboundProperties.'http.uri.params'.id]&quot;,
+  &quot;email&quot;: &quot;client0#[message.inboundProperties.'http.uri.params'.id]@email.com&quot;
+}" doc:name="Set Payload"/>
+        <tracking:custom-event event-name="GET:/clients/{id} (payload response)" doc:name="Custom Business Event">
+            <tracking:meta-data key="BAPI" value="XYZ"/>
+            <tracking:meta-data key="payload" value="#[payload]"/>
+        </tracking:custom-event>
+        <tracking:transaction id="#['GET Cliente/' + message.inboundProperties.'http.uri.params'.id]"/>
+    </flow>
+
+    <apikit:mapping-exception-strategy name="testes-devops-api-apiKitGlobalExceptionMapping">
+        <apikit:mapping statusCode="404">
+            <apikit:exception value="org.mule.module.apikit.exception.NotFoundException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property" />
+            <set-payload value="{ &quot;message&quot;: &quot;Resource not found&quot; }" doc:name="Set Payload" />
+        </apikit:mapping>
+        <apikit:mapping statusCode="405">
+            <apikit:exception value="org.mule.module.apikit.exception.MethodNotAllowedException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property" />
+            <set-payload value="{ &quot;message&quot;: &quot;Method not allowed&quot; }" doc:name="Set Payload" />
+        </apikit:mapping>
+        <apikit:mapping statusCode="415">
+            <apikit:exception value="org.mule.module.apikit.exception.UnsupportedMediaTypeException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property" />
+            <set-payload value="{ &quot;message&quot;: &quot;Unsupported media type&quot; }" doc:name="Set Payload" />
+        </apikit:mapping>
+        <apikit:mapping statusCode="406">
+            <apikit:exception value="org.mule.module.apikit.exception.NotAcceptableException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property" />
+            <set-payload value="{ &quot;message&quot;: &quot;Not acceptable&quot; }" doc:name="Set Payload" />
+        </apikit:mapping>
+        <apikit:mapping statusCode="400">
+            <apikit:exception value="org.mule.module.apikit.exception.BadRequestException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property" />
+            <set-payload value="{ &quot;message&quot;: &quot;Bad request&quot; }" doc:name="Set Payload" />
+        </apikit:mapping>
+        <apikit:mapping statusCode="500">
+            <apikit:exception value="java.lang.Exception" />
+            <set-variable variableName="exception" value="#[exception]" doc:name="Variable" />
+            <dw:transform-message doc:name="JSON Resposta">
+                <dw:set-payload><![CDATA[%dw 1.0
+%output application/json
+---
+{
+	mensagem: flowVars.exception.message
+}]]></dw:set-payload>
+            </dw:transform-message>
+            <tracking:custom-event event-name="payload response" doc:name="Custom Business Event">
+                <tracking:meta-data key="payload" value="#[payload]" />
+                <tracking:meta-data key="statusCode" value="500" />
+            </tracking:custom-event>
+            <set-property propertyName="http.status" value="500" doc:name="Property 500" />
+        </apikit:mapping>
+    </apikit:mapping-exception-strategy>
+</mule>
