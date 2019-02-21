@@ -109,6 +109,7 @@ payload]]></dw:set-payload>
         <tracking:custom-event event-name="GET:/clients/{id} (payload response)" doc:name="Custom Business Event">
             <tracking:meta-data key="BAPI" value="XYZ"/>
             <tracking:meta-data key="payload" value="#[payload]"/>
+            <tracking:meta-data key="ClienteId" value="#[message.inboundProperties.'http.uri.params'.id]"/>
         </tracking:custom-event>
         <tracking:transaction id="#['GET Cliente/' + message.inboundProperties.'http.uri.params'.id]"/>
     </flow>
