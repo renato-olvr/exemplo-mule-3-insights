@@ -51,7 +51,7 @@ retorno:{
         <set-payload value="[&#xA;  {&#xA;    &quot;id&quot;: 1,&#xA;    &quot;name&quot;: &quot;client 01&quot;,&#xA;    &quot;email&quot;: &quot;client01@email.com&quot;&#xA;  },&#xA;  {&#xA;    &quot;id&quot;: 1,&#xA;    &quot;name&quot;: &quot;client 02&quot;,&#xA;    &quot;email&quot;: &quot;client02@email.com&quot;&#xA;  }&#xA;]" doc:name="Set Payload" />
         <tracking:custom-event event-name="GET:/clients (payload response)" doc:name="Custom Business Event">
             <tracking:meta-data key="BAPI" value="XYZ" />
-            <tracking:meta-data key="payload" value="#[payload]" />
+            <tracking:meta-data key="payload" value="#[new String(payload)]" />
         </tracking:custom-event>
     </flow>
     <flow name="post:/clients:api-config">
@@ -72,12 +72,12 @@ cliente :  {
         </dw:transform-message>
         <tracking:custom-event event-name="Mensagem enviada para o SAP BAPI XPTO" doc:name="Custom Business Event">
             <tracking:meta-data key="BAPI" value="XPTO" />
-            <tracking:meta-data key="payload" value="#[payload]" />
+            <tracking:meta-data key="payload" value="#[new String(payload)]" />
         </tracking:custom-event>
         <flow-ref name="simular-resposta-SAP" doc:name="simular-resposta-SAP" />
         <tracking:custom-event event-name="mensagem retornada do SAP BAPI XPTO" doc:name="Custom Business Event">
             <tracking:meta-data key="BAPI" value="XPTO" />
-            <tracking:meta-data key="payload" value="#[payload]" />
+            <tracking:meta-data key="payload" value="#[new String(payload)]" />
         </tracking:custom-event>
         <dw:transform-message doc:name="SAP(XML) to Java">
             <dw:set-payload><![CDATA[%dw 1.0
@@ -95,8 +95,9 @@ payload]]></dw:set-payload>
 }]]></dw:set-payload>
         </dw:transform-message>
         <tracking:custom-event event-name="POST:/clients (payload response)" doc:name="Custom Business Event">
-            <tracking:meta-data key="payload" value="#[payload]" />
+            <tracking:meta-data key="payload" value="#[new String(payload)]" />
             <tracking:meta-data key="statusCode" value="201" />
+            <tracking:meta-data key="ClienteId" value="1"/>
         </tracking:custom-event>
     </flow>
 
@@ -152,7 +153,7 @@ payload]]></dw:set-payload>
 }]]></dw:set-payload>
             </dw:transform-message>
             <tracking:custom-event event-name="payload response" doc:name="Custom Business Event">
-                <tracking:meta-data key="payload" value="#[payload]" />
+                <tracking:meta-data key="payload" value="#[new String(payload)]" />
                 <tracking:meta-data key="statusCode" value="500" />
             </tracking:custom-event>
             <set-property propertyName="http.status" value="500" doc:name="Property 500" />
